@@ -1,43 +1,25 @@
 pipeline {
     agent {
         kubernetes {
-            label 'jenkins-agent'
+            label 'custom-agent'
             defaultContainer 'jnlp'
             yaml """
 apiVersion: v1
 kind: Pod
 spec:
   imagePullSecrets:
-  - name: dockerhub-creds
+  - name: nexus-secret
   containers:
-  - name: docker
-    image: docker:24.0.6-cli  # Docker CLI
-    command:
-    - cat
-    tty: true
-    env:
-    - name: DOCKER_HOST
-      value: tcp://localhost:2375
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
-  - name: dind
-    image: docker:24.0.6-dind
+  - name: jnlp
+    image: nexus.imcc.com/library/custom-jenkins-agent:latest
+    args:
+    - "$(JENKINS_SECRET)"
+    - "$(JENKINS_NAME)"
     securityContext:
       privileged: true
-    args:
-    - --host=tcp://0.0.0.0:2375
-    - --storage-driver=overlay2
-    env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
     volumeMounts:
     - name: docker-graph-storage
       mountPath: /var/lib/docker
-  - name: sonar
-    image: sonarsource/sonar-scanner-cli:latest  # SonarQube scanner
-    command:
-    - cat
-    tty: true
   volumes:
   - name: docker-graph-storage
     emptyDir: {}
@@ -52,12 +34,25 @@ spec:
     }
 
     stages {
+        stage('Start Docker Daemon') {
+            steps {
+                container('jnlp') {
+                    sh '''
+                        if ! pgrep dockerd >/dev/null 2>&1; then
+                          nohup dockerd --host=unix:///var/run/docker.sock --storage-driver=overlay2 >/tmp/dockerd.log 2>&1 &
+                          sleep 10
+                        fi
+                        docker info
+                    '''
+                }
+            }
+        }
         stage('SonarQube Analysis') {
             steps {
                 withCredentials([
                     usernamePassword(credentialsId: 'sonar-creds', usernameVariable: 'SONAR_LOGIN', passwordVariable: 'SONAR_PASSWORD')
                 ]) {
-                    container('sonar') {
+                    container('jnlp') {
                         sh """
                             sonar-scanner \
                             -Dsonar.projectKey=elderly-personal-assistance \
@@ -76,8 +71,7 @@ spec:
                 withCredentials([
                     usernamePassword(credentialsId: 'nexus-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')
                 ]) {
-                    container('docker') {
-                        sh "docker version"
+                    container('jnlp') {
                         sh "docker build -t ${NEXUS_URL}/backend:latest ./backend"
                         sh "echo ${NEXUS_PASS} | docker login -u ${NEXUS_USER} --password-stdin http://${NEXUS_URL}"
                         sh "docker push ${NEXUS_URL}/backend:latest"
@@ -91,7 +85,7 @@ spec:
                 withCredentials([
                     usernamePassword(credentialsId: 'nexus-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')
                 ]) {
-                    container('docker') {
+                    container('jnlp') {
                         sh "docker build -t ${NEXUS_URL}/frontend:latest ./frontend"
                         sh "echo ${NEXUS_PASS} | docker login -u ${NEXUS_USER} --password-stdin http://${NEXUS_URL}"
                         sh "docker push ${NEXUS_URL}/frontend:latest"
