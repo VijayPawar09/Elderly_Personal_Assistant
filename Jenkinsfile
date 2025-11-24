@@ -3,7 +3,7 @@ pipeline {
         kubernetes {
             label 'custom-agent'
             defaultContainer 'jnlp'
-            yaml """
+            yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -23,7 +23,7 @@ spec:
   volumes:
   - name: docker-graph-storage
     emptyDir: {}
-"""
+'''
         }
     }
 
