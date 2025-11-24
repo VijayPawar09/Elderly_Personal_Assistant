@@ -13,56 +13,87 @@ spec:
     command:
     - cat
     tty: true
+    env:
+    - name: DOCKER_HOST
+      value: tcp://localhost:2375
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+  - name: dind
+    image: docker:24.0.6-dind
+    securityContext:
+      privileged: true
+    args:
+    - --host=tcp://0.0.0.0:2375
+    - --storage-driver=overlay2
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+    volumeMounts:
+    - name: docker-graph-storage
+      mountPath: /var/lib/docker
   - name: sonar
     image: sonarsource/sonar-scanner-cli:latest  # SonarQube scanner
     command:
     - cat
     tty: true
+  volumes:
+  - name: docker-graph-storage
+    emptyDir: {}
 """
         }
     }
 
     environment {
         SONAR_HOST_URL = 'http://sonarqube.imcc.com/'
-        SONAR_LOGIN = 'student'
-        SONAR_PASSWORD = 'Imccstudent@2025'
 
         NEXUS_URL = 'nexus.imcc.com'
-        NEXUS_USER = 'student'
-        NEXUS_PASS = 'Imcc@2025'
     }
 
     stages {
         stage('SonarQube Analysis') {
             steps {
-                container('sonar') {
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=elderly-personal-assistance \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=${SONAR_HOST_URL} \
-                        -Dsonar.login=${SONAR_LOGIN} \
-                        -Dsonar.password=${SONAR_PASSWORD}
-                    """
+                withCredentials([
+                    usernamePassword(credentialsId: 'sonar-creds', usernameVariable: 'SONAR_LOGIN', passwordVariable: 'SONAR_PASSWORD')
+                ]) {
+                    container('sonar') {
+                        sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=elderly-personal-assistance \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=${SONAR_HOST_URL} \
+                            -Dsonar.login=${SONAR_LOGIN} \
+                            -Dsonar.password=${SONAR_PASSWORD}
+                        """
+                    }
                 }
             }
         }
 
         stage('Build & Push Backend') {
             steps {
-                container('docker') {
-                    sh "docker build -t ${NEXUS_URL}/backend:latest ./backend"
-                    sh "echo ${NEXUS_PASS} | docker login -u ${NEXUS_USER} --password-stdin http://${NEXUS_URL}"
-                    sh "docker push ${NEXUS_URL}/backend:latest"
+                withCredentials([
+                    usernamePassword(credentialsId: 'nexus-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')
+                ]) {
+                    container('docker') {
+                        sh "docker version"
+                        sh "docker build -t ${NEXUS_URL}/backend:latest ./backend"
+                        sh "echo ${NEXUS_PASS} | docker login -u ${NEXUS_USER} --password-stdin http://${NEXUS_URL}"
+                        sh "docker push ${NEXUS_URL}/backend:latest"
+                    }
                 }
             }
         }
 
         stage('Build & Push Frontend') {
             steps {
-                container('docker') {
-                    sh "docker build -t ${NEXUS_URL}/frontend:latest ./frontend"
-                    sh "docker push ${NEXUS_URL}/frontend:latest"
+                withCredentials([
+                    usernamePassword(credentialsId: 'nexus-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')
+                ]) {
+                    container('docker') {
+                        sh "docker build -t ${NEXUS_URL}/frontend:latest ./frontend"
+                        sh "echo ${NEXUS_PASS} | docker login -u ${NEXUS_USER} --password-stdin http://${NEXUS_URL}"
+                        sh "docker push ${NEXUS_URL}/frontend:latest"
+                    }
                 }
             }
         }
