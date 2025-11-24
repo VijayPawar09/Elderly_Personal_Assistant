@@ -3,15 +3,15 @@ import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique:true },
+    name: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     MobileNumber: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ["customer", "assistant", "admin"], required: true },
     age: { type: Number, required: true },
-    
-    // ✅ New field for profile photo
-    profilePhoto: { type: String },  // store filename or URL
+
+    // Profile Photo
+    profilePhoto: { type: String }, // filename or URL
   },
   { timestamps: true }
 );
@@ -23,7 +23,7 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// Password match method
+// Compare password
 userSchema.methods.comparePassword = function (password) {
   return bcrypt.compare(password, this.password);
 };

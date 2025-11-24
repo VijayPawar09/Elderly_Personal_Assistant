@@ -16,7 +16,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import assistantRoutes from "./routes/assistant.js";
 import customerRoutes from "./routes/customerRoutes.js";
 import notificationRoutes from "./routes/notification.js";
-import User from "./models/User.js";
+// import User from "./models/User.js";
 import Assistant from "./models/Assistant.js";
 import Customer from "./models/Customer.js";
 import Message from "./models/Message.js"; // For message persistence
