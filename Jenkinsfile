@@ -7,6 +7,8 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  imagePullSecrets:
+  - name: dockerhub-creds
   containers:
   - name: docker
     image: docker:24.0.6-cli  # Docker CLI
@@ -101,11 +103,7 @@ spec:
 
     post {
         always {
-            container('docker') {
-                sh "docker rmi ${NEXUS_URL}/backend:latest || true"
-                sh "docker rmi ${NEXUS_URL}/frontend:latest || true"
-                sh "docker logout http://${NEXUS_URL} || true"
-            }
+            echo 'Post-cleanup skipped when agent/pod is unavailable.'
         }
     }
 }
