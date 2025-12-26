@@ -1,6 +1,14 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// Ensure a JWT secret exists in development to avoid runtime errors from jwt.sign
+if (!process.env.JWT_SECRET) {
+  console.warn(
+    '⚠️  Warning: `JWT_SECRET` is not set. Using a development fallback secret.'
+  );
+  process.env.JWT_SECRET = "dev_jwt_secret_change_me";
+}
+
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -98,8 +106,9 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/appointments", appointmentRoutes);
 
 // ✅ MongoDB Connection
+const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/elderly_care";
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(mongoUri)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
